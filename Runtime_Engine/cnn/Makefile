@@ -1,8 +1,3 @@
-# You must configure ALTERAFPGAOCLSDKROOT to point the root directory of the Intel(R) FPGA SDK for OpenCL(TM)
-# software installation.
-# See http://www.altera.com/literature/hb/opencl-sdk/aocl_getting_started.pdf 
-# for more information on installing and configuring the Intel(R) FPGA SDK for OpenCL(TM).
-
 ifneq ($(RESNET50),)
 CPPFLAGS += -DRESNET50
 endif
@@ -12,22 +7,10 @@ CPPFLAGS += -DRESNET50_PRUNED
 endif
 
 ifeq ($(VERBOSE),1)
-ECHO := 
+ECHO :=
 else
 ECHO := @
 endif
-
-# Where is the Intel(R) FPGA SDK for OpenCL(TM) software?
-ifeq ($(wildcard $(INTELFPGAOCLSDKROOT)),)
-$(error Set INTELFPGAOCLSDKROOT to the root directory of the Intel(R) FPGA SDK for OpenCL(TM) software installation)
-endif
-ifeq ($(wildcard $(INTELFPGAOCLSDKROOT)/host/include/CL/opencl.h),)
-$(error Set INTELFPGAOCLSDKROOT to the root directory of the Intel(R) FPGA SDK for OpenCL(TM) software installation.)
-endif
-
-# OpenCL compile and link flags.
-AOCL_COMPILE_CONFIG := $(shell aocl compile-config)
-AOCL_LINK_CONFIG := $(shell aocl link-config)
 
 # Compilation flags
 ifeq ($(DEBUG),1)
@@ -45,12 +28,12 @@ TARGET_DIR := bin
 
 # Directories
 INC_DIRS := ../common/inc ./host/inc/
-LIB_DIRS := 
+LIB_DIRS :=
 
 # Files
 INCS := $(wildcard)
-SRCS := $(wildcard host/src/*.cpp ../common/src/AOCLUtils/*.cpp)
-LIBS := rt pthread
+SRCS := $(wildcard host/src/*.cpp)
+LIBS := rt pthread coral-api
 
 # Make it all!
 all : $(TARGET_DIR)/$(TARGET)
@@ -58,14 +41,14 @@ all : $(TARGET_DIR)/$(TARGET)
 # Host executable target.
 $(TARGET_DIR)/$(TARGET) : Makefile $(SRCS) $(INCS) $(TARGET_DIR)
 	$(ECHO)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -fPIC $(foreach D,$(INC_DIRS),-I$D) \
-			$(AOCL_COMPILE_CONFIG) $(SRCS) $(AOCL_LINK_CONFIG) \
+			$(SRCS) \
 			$(foreach D,$(LIB_DIRS),-L$D) \
 			$(foreach L,$(LIBS),-l$L) \
 			-o $(TARGET_DIR)/$(TARGET)
 
 $(TARGET_DIR) :
 	$(ECHO)mkdir $(TARGET_DIR)
-	
+
 # Standard make targets
 clean :
 	$(ECHO)rm -f $(TARGET_DIR)/$(TARGET)

@@ -5,7 +5,7 @@ you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
-    
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -35,7 +35,7 @@ TASK kernel void filter_reader(int frame_num, global real* restrict gl_filter, g
 
   int layer = 0;
 
-  int write_cache_addr = 0; 
+  int write_cache_addr = 0;
 
 #ifdef PRINT_CYCLE
   printf("FILTER_READER_CONV_TOTAL_CYCLES=%d\n", FILTER_READER_CONV_TOTAL_CYCLE);
@@ -45,9 +45,9 @@ TASK kernel void filter_reader(int frame_num, global real* restrict gl_filter, g
     int frame_cycle_end = FILTER_READER_CONV_TOTAL_CYCLE;
     int num_total_cycles = frame_cycle_end * frame_num;
 
-    SET_COUNTER(cycle, MAX_COUNTER_CAPACITY, 0, num_total_cycles, 1); 
-    SET_COUNTER(frame_index, frame_num, 0, frame_num, 1); 
-    SET_COUNTER(frame_cycle, frame_cycle_end, 0, frame_cycle_end, 1); 
+    SET_COUNTER(cycle, MAX_COUNTER_CAPACITY, 0, num_total_cycles, 1);
+    SET_COUNTER(frame_index, frame_num, 0, frame_num, 1);
+    SET_COUNTER(frame_cycle, frame_cycle_end, 0, frame_cycle_end, 1);
 
     bool new_layer = false;
 
@@ -68,11 +68,11 @@ TASK kernel void filter_reader(int frame_num, global real* restrict gl_filter, g
 
     if(new_layer) layer = layer_temp;
 
-    int N =  kOutputChannels[layer]; 
+    int N =  kOutputChannels[layer];
     int C = kInputChannels[layer];
     int FH = kFilterSize[layer];
     int S = kFilterSize[layer];
- 
+
     int N_VEC = kNvecEnd[layer];
     int C_VEC = kFilterCvecEnd[layer];
     int FW_VEC = kFWvecEnd[layer];
@@ -97,20 +97,20 @@ TASK kernel void filter_reader(int frame_num, global real* restrict gl_filter, g
     if (COUNTER_FIRST(n_inc) && COUNTER_FIRST(fw_vec) && COUNTER_FIRST(fh_vec) && COUNTER_FIRST(c_vec)) {
       write_cache_addr = 0;
     }
-	
+
     //
     // read filter data from DDR
-    //	
+    //
     FilterReaderOutput filter_reader_output;
-    
+
     int n = n_vec * N_VECTOR + n_inc;
     bool n_valid = n < N;
-    
+
     #pragma unroll
     for (int fw_inc = 0; fw_inc < FW_VECTOR; fw_inc++) {
       #pragma unroll
       for (int c_inc = 0; c_inc < C_VECTOR; c_inc++) {
-        int c = FH == 1 ? c_vec * FW_VECTOR * C_VECTOR + fw_inc * C_VECTOR + c_inc : c_vec * C_VECTOR + c_inc; 
+        int c = FH == 1 ? c_vec * FW_VECTOR * C_VECTOR + fw_inc * C_VECTOR + c_inc : c_vec * C_VECTOR + c_inc;
         bool valid = (n_valid && c < C);
 
         int filter_addr =
@@ -120,7 +120,7 @@ TASK kernel void filter_reader(int frame_num, global real* restrict gl_filter, g
                 fh_vec * FW_VEC * N_VECTOR * NEXT_POWER_OF_2(FW_VECTOR * C_VECTOR) +
                 fw_vec * N_VECTOR * NEXT_POWER_OF_2(FW_VECTOR * C_VECTOR) +
                 n_inc * NEXT_POWER_OF_2(FW_VECTOR * C_VECTOR) +
-                fw_inc * C_VECTOR + 
+                fw_inc * C_VECTOR +
                 c_inc;
 
         real filter_data = valid ? gl_filter[filter_addr] : 0;
@@ -132,9 +132,9 @@ TASK kernel void filter_reader(int frame_num, global real* restrict gl_filter, g
     filter_reader_output.bias_bn_data = n_valid ? gl_bias_bn[bias_bn_addr] : BiasBnZero;
     filter_reader_output.cache_addr = write_cache_addr;
     filter_reader_output.n_inc = n_inc;
-   
+
     write_channel_intel(filter_reader_output_channel, filter_reader_output);
-    
+
     if (COUNTER_LAST(n_inc)) {
       write_cache_addr = (write_cache_addr + 1) & BIT_MASK(CLOG2(FILTER_CACHE_DEPTH));
     }
@@ -151,5 +151,5 @@ TASK kernel void filter_reader(int frame_num, global real* restrict gl_filter, g
 
     INCREASE_COUNTER(cycle);
   } while (!COUNTER_DONE(cycle));
-  
+
 }

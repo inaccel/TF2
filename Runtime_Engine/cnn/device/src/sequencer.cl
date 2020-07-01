@@ -5,7 +5,7 @@ you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
-    
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -23,7 +23,7 @@ limitations under the License.
 // Functions:
 // 1. Sets the pace of retriever kernel.
 // 2. Computes the filter reading address in pe kernel.
-// 3. Computes the starting address of h, w_vec and w_inc of current ow_vec block feature map to be sent to pe kernel from feature_cache in retriever kernel. 
+// 3. Computes the starting address of h, w_vec and w_inc of current ow_vec block feature map to be sent to pe kernel from feature_cache in retriever kernel.
 // 4. Sends out working state control signals.
 
 TASK kernel void sequencer(int frame_num) {
@@ -39,9 +39,9 @@ TASK kernel void sequencer(int frame_num) {
 
   int layer = 0;
 
-  int filter_read_page = 0; 
+  int filter_read_page = 0;
   int filter_read_addr = 0;
-  int filter_read_fw_vec = 0; 
+  int filter_read_fw_vec = 0;
   int filter_load_cycle = 0;
   int filter_load_cycle_end = 0;
   bool filter_loading_conv_idle = 0;
@@ -52,7 +52,7 @@ TASK kernel void sequencer(int frame_num) {
   int feature_read_w_inc_from_fh_vec = 0;
   int feature_read_w_vec_from_fw_vec = 0;
   int feature_read_w_inc_from_fw_vec = 0;
-  
+
   do {
     int frame_cycle_end = CONV_TOTAL_CYCLE;
     int cycle_end = frame_cycle_end*frame_num;
@@ -62,8 +62,8 @@ TASK kernel void sequencer(int frame_num) {
     SET_COUNTER(frame_cycle, frame_cycle_end, 0, frame_cycle_end, 1);
     if (COUNTER_FIRST(frame_cycle)){
       //layer = 0;
-      filter_read_page = 0; 
-      filter_read_addr = 0; 
+      filter_read_page = 0;
+      filter_read_addr = 0;
       filter_read_fw_vec = 0;
       filter_load_cycle = 0;
       filter_load_cycle_end = 0;
@@ -93,21 +93,21 @@ TASK kernel void sequencer(int frame_num) {
     }
 
     if (new_layer)  layer = layer_temp;
-    
+
     int N = kOutputChannels[layer];
     int C = kInputChannels[layer];
-    int OW = kOutputWidth[layer]; 
+    int OW = kOutputWidth[layer];
     int OH = kOutputHeight[layer];
-    int PAD_H = kPadHeight[layer]; 
-    int PAD_W = kPadWidth[layer]; 
+    int PAD_H = kPadHeight[layer];
+    int PAD_W = kPadWidth[layer];
     int FH = kFilterSize[layer];
     int W = kInputWidth[layer];
     int H = kInputHeight[layer];
 
-    int N_VEC = kNvecEnd[layer]; 
-	
+    int N_VEC = kNvecEnd[layer];
+
     int WOW_VECTOR = FH != 1 ? OW_VECTOR : W_VECTOR;
-	
+
     int WOW_VEC = CEIL(OW, WOW_VECTOR);
     int C_VEC = kCvecEnd[layer];
     int FW_VEC = kFWvecEnd[layer];
@@ -142,7 +142,7 @@ TASK kernel void sequencer(int frame_num) {
 #ifdef PRINT_SEQUENCER_INDEX
       printf("SEQUENCER frame_index=%d layer=%d n_vec=%d .......................................\n", frame_index, layer, n_vec);
 #endif
-    
+
       int load_size =
           last_n_vec == false ? filter_load_size :
           last_n_vec == true && last_conv == false ? filter_load_size_next : 0;
@@ -178,11 +178,11 @@ TASK kernel void sequencer(int frame_num) {
 
       feature_read_w_vec_from_ow_vec += WOW_VECTOR / W_VECTOR;
       feature_read_w_inc_from_ow_vec += WOW_VECTOR % W_VECTOR;
-	  
+
       filter_read_addr = 0;
       filter_read_fw_vec = 0;
     }
-    
+
     // start of each fh_vec
     if (COUNTER_FIRST(fw_vec)) {
       feature_read_w_vec_from_fh_vec = feature_read_w_vec_from_ow_vec;
@@ -209,7 +209,7 @@ TASK kernel void sequencer(int frame_num) {
       feature_read_w_inc_from_fw_vec -= 5 * W_VECTOR;
       feature_read_w_vec_from_fw_vec += 5;
     }
-    
+
     if (feature_read_w_inc_from_fw_vec >= 4 * W_VECTOR) {
       feature_read_w_inc_from_fw_vec -= 4 * W_VECTOR;
       feature_read_w_vec_from_fw_vec += 4;
@@ -226,7 +226,7 @@ TASK kernel void sequencer(int frame_num) {
       feature_read_w_inc_from_fw_vec -= 1 * W_VECTOR;
       feature_read_w_vec_from_fw_vec += 1;
     }
-    
+
     /*
     while(feature_read_w_inc_from_fw_vec >= W_VECTOR) {
       feature_read_w_inc_from_fw_vec -= W_VECTOR;
@@ -244,7 +244,7 @@ TASK kernel void sequencer(int frame_num) {
 
     // filter reading address
     sequencer_output.filter_read_page = filter_read_page;
-    sequencer_output.filter_read_addr = filter_read_addr; 
+    sequencer_output.filter_read_addr = filter_read_addr;
     sequencer_output.filter_read_fw_vec = filter_read_fw_vec;
 
     if (FH == 1) {
@@ -257,20 +257,20 @@ TASK kernel void sequencer(int frame_num) {
     } else {
       filter_read_addr = (filter_read_addr + 1) & BIT_MASK(CLOG2(FILTER_CACHE_DEPTH));
     }
-   
+
     sequencer_output.filter_loading = (filter_load_cycle < filter_load_cycle_end);
     filter_load_cycle++;
 
     #pragma unroll
     for (int w_inc = 0; w_inc < W_VECTOR; w_inc++) {
-      if (FH != 1 && w_inc >= OW_VECTOR) continue; 
+      if (FH != 1 && w_inc >= OW_VECTOR) continue;
 
       int ow = ow_vec * WOW_VECTOR + w_inc;
       int oh = oh_vec;
 
 
-      int h_header = oh - PAD_H; 
-      int w_header = ow - PAD_W; 
+      int h_header = oh - PAD_H;
+      int w_header = ow - PAD_W;
 
       #pragma unroll
       for (int fw_inc = 0; fw_inc < FW_VECTOR; fw_inc++) {
@@ -297,18 +297,18 @@ TASK kernel void sequencer(int frame_num) {
         // starting indices of h, w_vec and w_inc of current ow_vec block feature map to be sent to pe kernel from feature_cache in retriever kernel
         if (w_inc_cursor == 0) {
           sequencer_output.h = h;
-          sequencer_output.feature_read_w_vec_header = feature_read_w_vec_from_w_fw_inc; 
+          sequencer_output.feature_read_w_vec_header = feature_read_w_vec_from_w_fw_inc;
           sequencer_output.feature_read_w_inc_header = feature_read_w_inc_from_w_fw_inc;
         }
       }
 
       // convolution done singal
       bool conv_done =
-        COUNTER_LAST(c_vec) && COUNTER_LAST(fh_vec) && COUNTER_LAST(fw_vec) && 
+        COUNTER_LAST(c_vec) && COUNTER_LAST(fh_vec) && COUNTER_LAST(fw_vec) &&
         oh < kOutputHeight[layer] &&
         ow < kOutputWidth[layer];
-      
-      sequencer_output.conv_done[w_inc] = conv_done; 
+
+      sequencer_output.conv_done[w_inc] = conv_done;
     }
 
     if (kIpoolEnable[layer]) {

@@ -5,7 +5,7 @@ you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
-    
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -33,29 +33,27 @@ int main(int argc, char **argv) {
   INFO("verify_file_name = %s\n", verify_file_name);
   INFO("num_images = %d\n", num_images);
 
-  OpenCLFPGA platform;
-  if (!platform.Init()) {
-    return -1;
-  }  
+  if (!setCwdToExeDir()) {
+    return false;
+  }
 
   NetWork network;
-  if (!network.Init(platform, model_file, q_file, image_file, num_images)) {
+  if (!network.Init(model_file, q_file, image_file, num_images)) {
     return -1;
   }
 
-  Runner runner(platform, network);
+  Runner runner(network);
   runner.Init();
   runner.Run();
 
   // verification
   for (int i = 0; i < num_images; i++) {
-    Verify(i, verify_file_name, network.q, network.output);
-    Evaluation(i, network.q, network.output, network.top_labels);
+    Verify(i, verify_file_name, network.q, network.output->data());
+    Evaluation(i, network.q, network.output->data(), network.top_labels);
   }
 
   // CleanUp
   network.CleanUp();
-  platform.CleanUp();
 
   return 0;
 }

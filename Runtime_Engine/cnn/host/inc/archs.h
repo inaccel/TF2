@@ -5,7 +5,7 @@ you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
-    
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -41,17 +41,5 @@ limitations under the License.
 
 // the vector size of input feature map / image width
 #define W_VECTOR (FW_VECTOR + OW_VECTOR - 1)
-
-// controls whether kernels using the AUTORUN macro are actually autorun
-// default: enabled
-#ifndef DISABLE_AUTORUN_KERNELS
-#define USE_AUTORUN_KERNELS
-#endif
-
-// Controls whether kernels have an outer loop which is an infinite loop.
-// default: enabled
-#ifndef DISABLE_INFINITE_LOOPS
-#define ENABLE_INFINITE_LOOPS
-#endif
 
 #endif // __ARCHS_H__

@@ -5,7 +5,7 @@ you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
-    
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -25,13 +25,13 @@ limitations under the License.
 // TODO: Support the condition NARROW_N_VECTOR != N_VECTOR
 
 TASK kernel void full_size_pool(int frame_num) {
-  INIT_COUNTER(frame_index); 
+  INIT_COUNTER(frame_index);
   INIT_COUNTER(frame_cycle);
   INIT_COUNTER(n_vec);
   INIT_COUNTER(h_vec);
   INIT_COUNTER(w_vec);
   INIT_COUNTER(nn_vec);
-  
+
   int layer = 0;
 
   int frame_cycle_end = END_POOL_TOTAL_CYCLE;
@@ -41,16 +41,16 @@ TASK kernel void full_size_pool(int frame_num) {
 #endif
 
   Sreal result[NN_VEC][NARROW_N_VECTOR] = {0};
-  
+
   #pragma ivdep
   do {
     SET_COUNTER(frame_cycle, frame_cycle_end, 0, frame_cycle_end, 1);
     SET_COUNTER(frame_index, frame_num, 0, frame_num, 1);
-    
+
     bool new_layer = false;
     int end_pool_start_cycle = 0;
     int layer_temp = 0;
-    
+
     #pragma unroll
     for (int i = 0; i < NUM_CONVOLUTIONS; i++) {
       if (new_layer) continue;
@@ -62,12 +62,12 @@ TASK kernel void full_size_pool(int frame_num) {
     }
 
     if (new_layer) layer = layer_temp;
-    
+
     // write cache start
     //
     // receive pool data
     //
-    
+
     int N = kOutputChannels[layer];
     int H = kPoolOutputHeight[layer];
     int W = kPoolOutputWidth[layer];
@@ -90,8 +90,8 @@ TASK kernel void full_size_pool(int frame_num) {
       RESET_COUNTER(w_vec);
       RESET_COUNTER(nn_vec);
       new_layer = false;
-    }  
-  
+    }
+
     PoolTailOutput end_pool_input = read_channel_intel(end_pool_input_channel);
     PoolTailOutput end_pool_output = PoolTailOutputZero;
 
@@ -108,16 +108,16 @@ TASK kernel void full_size_pool(int frame_num) {
         int n = n_vec * N_VECTOR + nn_vec * NARROW_N_VECTOR + n_inc;
         int oh = h_vec;
         int ow = w_vec * W_VECTOR + w_inc;
-      
+
         if (n < N && (oh >= 0 && oh < H) && (ow >= 0 && ow < W)) {
           //result[nn_vec][n_inc] += end_pool_input.write_data[w_inc][n_inc];
           temp_result[n_inc] += end_pool_input.write_data[w_inc][n_inc];
         }
       }
-    }    
+    }
 
     if (COUNTER_LAST(h_vec) && COUNTER_LAST(w_vec)) {
-         
+
       #pragma unroll
       for (int n_inc = 0; n_inc < NARROW_N_VECTOR; n_inc++) {
         int n = n_vec * N_VECTOR + nn_vec * NARROW_N_VECTOR + n_inc;
@@ -134,15 +134,15 @@ TASK kernel void full_size_pool(int frame_num) {
           temp_result[n_inc] = 0;
         }
       }
-      
+
       write_channel_intel(end_pool_output_channel, end_pool_output);
     }
-    
+
     #pragma unroll
     for (int n_inc = 0; n_inc < NARROW_N_VECTOR; n_inc++) {
        result[nn_vec][n_inc] = temp_result[n_inc];
     }
-    
+
     INCREASE_COUNTER(nn_vec);
     if (COUNTER_DONE(nn_vec))  { RESET_COUNTER(nn_vec);  INCREASE_COUNTER(w_vec); }
     if (COUNTER_DONE(w_vec))  { RESET_COUNTER(w_vec);  INCREASE_COUNTER(h_vec); }
@@ -151,7 +151,7 @@ TASK kernel void full_size_pool(int frame_num) {
     INCREASE_COUNTER(frame_cycle);
 
     if (COUNTER_DONE(frame_cycle)) { RESET_COUNTER(frame_cycle); INCREASE_COUNTER(frame_index); }
-    
+
   } while (!COUNTER_DONE(frame_index));
 
 }

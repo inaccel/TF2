@@ -5,7 +5,7 @@ you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
-    
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -23,31 +23,31 @@ limitations under the License.
 // Functions:
 // Collects the pool kernel output data, and rearranges it to fit feature_writer kernel.
 
-TASK kernel void pool_tail(int frame_num, global volatile real* restrict feature_ddr) {
-  INIT_COUNTER(frame_index); 
+TASK kernel void pool_tail(int frame_num) {
+  INIT_COUNTER(frame_index);
   INIT_COUNTER(frame_cycle);
   INIT_COUNTER(n_vec);
   INIT_COUNTER(h_vec);
   INIT_COUNTER(w_vec);
   INIT_COUNTER(nn_vec);
-  
+
   int layer = 0;
- 
+
   bool buffer_index[NN_VEC] = {0};
   bool buffer_done_index[NN_VEC] = {0};
-  
+
   real __attribute__((register)) write_data[NN_VEC][2][NEXT_POWER_OF_2(W_VECTOR)][NEXT_POWER_OF_2(C_VECTOR)];
-  
+
   bool odd_even_factor[NN_VEC] = {0};
   bool odd_even_factor_pool[NN_VEC] = {0};
   int start_wvec_data_addr[NN_VEC] = {0};
   int output_linear_w[NN_VEC] = {0};
 
-  do { 
+  do {
     int frame_cycle_end = POOL_TOTAL_CYCLE;  // * frame_num BUG
     SET_COUNTER(frame_cycle, frame_cycle_end, 0, frame_cycle_end, 1);
     SET_COUNTER(frame_index, frame_num, 0, frame_num, 1);
-   
+
     //printf("POOL_TAIL cycle=%d/%d\n", frame_cycle, frame_cycle_end);
 
     bool new_layer = false;
@@ -70,7 +70,7 @@ TASK kernel void pool_tail(int frame_num, global volatile real* restrict feature
     int OW = kPoolOutputWidth[layer];
     int FH = kFilterSize[layer];
     int N_VEC = kNEndWithOffset[layer];
-    
+
     int WOW_VECTOR = FH != 1 ? OW_VECTOR : W_VECTOR;
 
     int H_VEC = kOhEndWithOffset[layer];
@@ -93,7 +93,7 @@ TASK kernel void pool_tail(int frame_num, global volatile real* restrict feature
     bool conv_stride_2 = kConvStride[layer] == 2;
 
     int ow_offset = pool_stride_2 || conv_stride_2 ? (POOL_OFFSET_P + 1) / 2 : POOL_OFFSET_P - kPoolPad[layer];
-    
+
     if (COUNTER_FIRST(w_vec)) {
       odd_even_factor[nn_vec] = 1;
       start_wvec_data_addr[nn_vec] = -ow_offset;
@@ -111,11 +111,11 @@ TASK kernel void pool_tail(int frame_num, global volatile real* restrict feature
     }
 
     int step = pool_stride_2 || conv_stride_2 ? (WOW_VECTOR + odd_even_factor[nn_vec]) / 2 : WOW_VECTOR;
-    
+
     //
     // write data to the cache
     //
-    
+
     // receive pool data
     PoolOutput pool_output = read_channel_intel(pool_output_channel);
 
@@ -131,7 +131,7 @@ TASK kernel void pool_tail(int frame_num, global volatile real* restrict feature
           buffer_index_cache[w_inc] = -1;
           continue;
         } else {
-          w_cursor = (w_inc - odd_even_factor_pool[nn_vec]) / 2;       
+          w_cursor = (w_inc - odd_even_factor_pool[nn_vec]) / 2;
         }
       }
 
@@ -148,7 +148,7 @@ TASK kernel void pool_tail(int frame_num, global volatile real* restrict feature
       w_index_cache[w_inc] = w_index;
       buffer_index_cache[w_inc] = buffer_index[nn_vec];
       if (w_cursor == (step - 1) && w_index == (W_VECTOR - 1)) buffer_index[nn_vec] = !buffer_index[nn_vec];
-    
+
       //printf("POOL_TAIL1 cycle=%d/%d n_vec=%d w_vec=%d h_vec=%d nn_vec=%d w_inc=%d w_index_cache=%d buffer_index_cache=%d\n", frame_cycle, frame_cycle_end, n_vec, w_vec, h_vec, nn_vec, w_inc, w_index_cache[w_inc], buffer_index_cache[w_inc]);
     }
 
@@ -187,10 +187,10 @@ TASK kernel void pool_tail(int frame_num, global volatile real* restrict feature
     }
 
     output_linear_w[nn_vec] += step;
-    
-    bool write_enable_hvec = true; 
+
+    bool write_enable_hvec = true;
     if ((h_vec < (POOL_OFFSET_P - kPoolPad[layer])) || (!pool_stride_2 && (h_vec > (POOL_OFFSET_P - kPoolPad[layer] + P - 1))) || (pool_stride_2 && (h_vec % 2 != 0))) write_enable_hvec = false;
-    
+
     if (buffer_done && write_enable_hvec) {
       PoolTailOutput pool_tail_output = PoolTailOutputZero;
 
@@ -215,13 +215,6 @@ TASK kernel void pool_tail(int frame_num, global volatile real* restrict feature
     if (COUNTER_DONE(h_vec))  { RESET_COUNTER(h_vec);  INCREASE_COUNTER(n_vec); }
     if (COUNTER_DONE(n_vec))  { RESET_COUNTER(n_vec); }
 
-#ifdef ENABLE_INFINITE_LOOPS_POOL_TAIL
-    if (COUNTER_DONE(frame_index)) { RESET_COUNTER(frame_index); }
-#endif
-  }
-#ifdef ENABLE_INFINITE_LOOPS_POOL_TAIL
-  while (1);
-#else
-  while (!COUNTER_DONE(frame_index));
-#endif
+  } while (!COUNTER_DONE(frame_index));
+
 }

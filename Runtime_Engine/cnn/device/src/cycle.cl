@@ -5,7 +5,7 @@ you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
-    
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -36,7 +36,7 @@ int FindConvCvecCycles(int layer) {
   int FH = kFilterSize[layer];
   int C_VEC = kCvecEnd[layer];
   int FW_VEC = kFWvecEnd[layer];
-  
+
   return C_VEC * FH * FW_VEC;
 }
 
@@ -89,11 +89,11 @@ int FindConvCycles(int layer) {
 // computes the total number of cycles the sequencer will run for
 int FindConvTotalCycles() {
   int total_cycles = 0;
-  #pragma unroll  
+  #pragma unroll
   for (int layer = 0; layer < NUM_LAYER; layer++) {
     total_cycles += FindConvCycles(layer);
   }
-  
+
   return total_cycles;
 }
 
@@ -108,14 +108,14 @@ int FindPeCycles(int layer) {
   } else {
     total_cycles = FindConvCycles(layer);
   }
-  
+
   return total_cycles;
 }
 
 // computes the total number of cycles the pe will run for
 int FindPeTotalCycles() {
   int total_cycles = 0;
-  #pragma unroll  
+  #pragma unroll
   for (int layer = 0; layer < NUM_LAYER; layer++) {
     total_cycles += FindPeCycles(layer);
   }
@@ -125,7 +125,7 @@ int FindPeTotalCycles() {
 // compute the total number of cycles the sequencer will run for
 int FindConvLayerCycles(int total_layer) {
   int total_cycles = 0;
-  #pragma unroll  
+  #pragma unroll
   for (int layer = 0; layer < total_layer; layer++) {
     total_cycles += FindConvCycles(layer);
   }
@@ -147,11 +147,11 @@ int FindConvWriteCache(int layer) {
 
 int FindConvTotalWriteCache() {
   int cycles = 0;
-  #pragma unroll 
+  #pragma unroll
   for (int layer = 0; layer < NUM_LAYER; layer++) {
     cycles += kIpoolEnable[layer] ? 0 : FindConvWriteCache( layer );
   }
-  
+
   return cycles;
 }
 
@@ -163,9 +163,9 @@ int FindPoolCycles(int layer) {
   int OW = kOwEndWithOffset[layer];
 
   int N_VEC = CEIL(N, N_VECTOR);
-  
+
   int WOW_VECTOR = FW != 1 ? OW_VECTOR : W_VECTOR;
-  
+
   int W_VEC = CEIL(OW, WOW_VECTOR);
 
   return N_VEC * OH * W_VEC * NN_VEC;
@@ -173,12 +173,12 @@ int FindPoolCycles(int layer) {
 
 int FindPoolTotalCycles() {
   int total_cycles = 0;
-  
-  #pragma unroll 
+
+  #pragma unroll
   for (int layer = 0; layer < NUM_LAYER; layer++) {
     total_cycles += FindPoolCycles(layer);
   }
-  
+
   return total_cycles;
 }
 
@@ -187,33 +187,33 @@ int FindFeatureWriterCycles(int layer) {
 
   int N = kOutputChannels[layer];
   int H = kPoolOutputHeight[layer];
-  int W = kPoolOutputWidth[layer];       
+  int W = kPoolOutputWidth[layer];
   int FW = kFilterSize[layer];
-  
+
   total_cycles = CEIL(N, N_VECTOR) * CEIL(N_VECTOR, NARROW_N_VECTOR) * H * CEIL(W, W_VECTOR);
-    
+
   return total_cycles;
 }
 
 int FindFeatureWriterTotalCycles() {
   int total_cycles = 0;
-  
-  #pragma unroll 
+
+  #pragma unroll
   for (int layer = 0; layer < NUM_LAYER; layer++) {
     total_cycles += FindFeatureWriterCycles(layer);
   }
-  
+
   return total_cycles;
 }
 
 int FindEndPoolTotalCycles() {
   int total_cycles = 0;
-  #pragma unroll 
+  #pragma unroll
   for (int layer = 0; layer < NUM_LAYER; layer++) {
     if (kEndPoolEnable[layer])
       total_cycles += FindFeatureWriterCycles(layer);
   }
-  
+
   return total_cycles;
 }
 
@@ -224,18 +224,18 @@ int FindFilterReaderConvCycles(int layer) {
   int C = kInputChannels[layer];
   int C_VEC = FH == 1 ? CEIL(C, C_VECTOR * FW_VECTOR) : CEIL(C, C_VECTOR);
   int FW_VEC = kFWvecEnd[layer];
-  
+
   return kIpoolEnable[layer] ? 0 : N_VEC * C_VEC * FH * FW_VEC * N_VECTOR;
 }
 
 int FindFilterReaderConvTotalCycles() {
   int total_cycles = 0;
-  
-  #pragma unroll 
+
+  #pragma unroll
   for (int layer = 0; layer < NUM_LAYER; layer++) {
     total_cycles += FindFilterReaderConvCycles(layer);
   }
-  
+
   return total_cycles;
 }
 
@@ -243,7 +243,7 @@ int FindInputReaderCycles() {
   int C = kInputChannels[0];
   int H = kInputHeight[0];
   int W = kInputWidth[0];
-  
+
   return CEIL(C, C_VECTOR) * H * CEIL(W, W_VECTOR);
 }
 

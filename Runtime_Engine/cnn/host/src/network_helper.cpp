@@ -5,7 +5,7 @@ you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
-    
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -73,7 +73,7 @@ void Verify(int n, char *file_name, char *q, real *output) {
   //std::string file_name = "model/resnet50/pool1.bin";
   //std::string file_name = "model/resnet50/fc1000.bin";
   //std::string file_name = "model/ResNet50_pruned/fc1000.bin";
-  
+
   fp = fopen(file_name, "r");
   if (!fp) {
     ERROR("fopen file error!\n");
@@ -109,7 +109,7 @@ void Verify(int n, char *file_name, char *q, real *output) {
         int w_vec = w / W_VECTOR;
         int ww = w - w_vec * W_VECTOR;
         int nn = n - n_vec * NARROW_N_VECTOR;
-        int addr_out = 
+        int addr_out =
                     output_offset + concat_offset + ddr_write_offset +
                     n_vec * H * CEIL(W, W_VECTOR) * NEXT_POWER_OF_2(W_VECTOR * NARROW_N_VECTOR) +
                     h_vec * CEIL(W, W_VECTOR) * NEXT_POWER_OF_2(W_VECTOR * NARROW_N_VECTOR) +
@@ -137,14 +137,14 @@ void Verify(int n, char *file_name, char *q, real *output) {
   fclose(fp_output);
 
   INFO("Convolution %d compare finished, error=%f\n", NUM_LAYER, total_error / total_expect);
-  if (expect) alignedFree(expect);
+  if (expect) free(expect);
 }
 
 void Evaluation(int n, char* q, real* output, int* top_labels) {
   int output_channel = kOutputChannels[NUM_LAYER - 1];
   int width = 1;
   int height = 1;
-  
+
   int size = output_channel * width * height;
 
   FILE *fp;
@@ -170,7 +170,7 @@ void Evaluation(int n, char* q, real* output, int* top_labels) {
     int w_vec = 0;
     int ww = w - w_vec * W_VECTOR;
     int nn = n - n_vec * NARROW_N_VECTOR;
-    int addr_out = 
+    int addr_out =
                 ddr_write_offset + output_offset +
                 n_vec * H * CEIL(W, W_VECTOR) * NEXT_POWER_OF_2(W_VECTOR * NARROW_N_VECTOR) +
                 h_vec * CEIL(W, W_VECTOR) * NEXT_POWER_OF_2(W_VECTOR * NARROW_N_VECTOR) +

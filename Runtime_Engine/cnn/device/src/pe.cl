@@ -5,7 +5,7 @@ you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
-    
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -28,14 +28,14 @@ inline Mreal MUL(real feature, real filter) {
   if (BIT_IS_SET(filter, 6)) {
     return 0;
   }
- 
+
   if (BIT_IS_SET(filter, 7)) {
     feature = -feature;
   }
 
   filter = 0x1f & filter;
   Mreal data = feature << filter;
- 
+
   return data;
 }
 
@@ -44,7 +44,7 @@ STATIC Mreal DotProduct(DotVector feature_values, DotVector filter_values) {
   #pragma unroll
   for (int c_inc = 0; c_inc < C_VECTOR; c_inc++)
     dot_accum += MUL(feature_values.v[c_inc], filter_values.v[c_inc]);
-  
+
   return dot_accum;
 }
 
@@ -76,20 +76,20 @@ void PeFunction(int n_inc) {
     PeInputData pe_in;
     PeInputFilter pe_filter;
     PeControlSignal cont;
-    
+
     if (n_inc == 0) {
       cont      = read_channel_intel(pe_control_channel_first);
       pe_filter = read_channel_intel(pe_input_filter_channel_first);
       pe_in     = read_channel_intel(pe_input_data_channel_first);
-    } else {                          
+    } else {
       cont      = read_channel_intel(pe_control_channel[n_inc-1]);
       pe_filter = read_channel_intel(pe_input_filter_channel[n_inc-1]);
       pe_in     = read_channel_intel(pe_input_data_channel[n_inc-1]);
     }
-    
+
     write_channel_intel(pe_control_channel[n_inc],      cont);
     write_channel_intel(pe_input_filter_channel[n_inc], pe_filter);
-    write_channel_intel(pe_input_data_channel[n_inc],   pe_in);    
+    write_channel_intel(pe_input_data_channel[n_inc],   pe_in);
 
     // input feature map data
     DotFeatureVector input_data = pe_in.input_data;
@@ -103,9 +103,9 @@ void PeFunction(int n_inc) {
     bool filter_bias_write_page = !filter_bias_read_page;
     int  filter_read_addr = cont.filter_read_addr;
     char filter_read_fw_vec = cont.filter_read_fw_vec;
-    int  filter_write_addr = cont.filter_write_addr; 
+    int  filter_write_addr = cont.filter_write_addr;
     int  filter_n = pe_filter.n_inc;
-    
+
     // make sure unnecessary bits are masked off
     filter_n &= BIT_MASK(CLOG2(N_VECTOR));
     filter_read_addr &= BIT_MASK(CLOG2(FILTER_CACHE_DEPTH));
@@ -114,20 +114,20 @@ void PeFunction(int n_inc) {
     bool conv_start = cont.conv_start;
 
     conv_done = cont.conv_done[0];
-    
-    // save filter and bias data for next n_vec  
+
+    // save filter and bias data for next n_vec
     if (filter_data_valid && filter_n == n_inc) {
       #pragma unroll
       for (int fw_inc = 0; fw_inc < FW_VECTOR; fw_inc++) {
         filter_cache[filter_write_addr][fw_inc] = filter_data.v[fw_inc];
       }
-    
+
       // saves bias data and bn parameters to the specific buffer
       if (filter_write_addr == 0 || filter_write_addr == FILTER_CACHE_PAGE_DEPTH) {
         bias_bn_cache[filter_bias_write_page] = bias_bn_data;
       }
     }
-    
+
     //
     // read filter and bias data for the current input data
     //
@@ -137,9 +137,9 @@ void PeFunction(int n_inc) {
     for (int fw_inc = 0; fw_inc < FW_VECTOR; fw_inc++) {
       filter.v[fw_inc] = filter_cache[filter_read_addr][fw_inc];
     }
- 
+
     BiasBnParam bias_bn = bias_bn_cache[filter_bias_read_page];
-    
+
     //
     // compute dot product by shifting operation
     //
@@ -152,7 +152,7 @@ void PeFunction(int n_inc) {
         for (int fw_inc = 0; fw_inc < FW_VECTOR; fw_inc++) {
           dot_sum_fw_vec[ow_inc] += DotProduct( input_data.v[ow_inc+fw_inc], filter.v[fw_inc]);
 #ifdef PRINT_PE_INPUT
-          if (n_inc == PRINT_N && cycle >= debug_cycle && cycle < debug_cycle + debug_range) { 
+          if (n_inc == PRINT_N && cycle >= debug_cycle && cycle < debug_cycle + debug_range) {
             for (int c_inc = 0; c_inc < C_VECTOR; c_inc++ )
               printf ("PE ow_vec=%d fw_vec=%d c_inc=%d input_data=%d filter=%d cycle=%d\frame_index", ow_inc, fw_inc, c_inc, input_data.v[ow_inc+fw_inc].v[c_inc], filter.v[fw_inc].v[c_inc], cycle);
           }
@@ -164,14 +164,14 @@ void PeFunction(int n_inc) {
       for (int w_inc = 0; w_inc < W_VECTOR; w_inc++) {
         dot_sum_fw_vec[w_inc] = DotProduct(input_data.v[w_inc], filter.v[filter_read_fw_vec]);
 #ifdef PRINT_PE_INPUT
-        if (n == PRINT_N && cycle >= debug_cycle && cycle < debug_cycle + debug_range) { 
+        if (n == PRINT_N && cycle >= debug_cycle && cycle < debug_cycle + debug_range) {
           for (int c_inc = 0; c_inc < C_VECTOR; c_inc++)
             printf("PE w_inc=%d c_inc=%d fsvec=%d input_data=%d filter=%d cycle=%d\frame_index", w_inc, c_inc, filter_read_fw_vec, input_data.v[w_inc].v[c_inc], filter.v[filter_read_fw_vec].v[c_inc], cycle);
         }
 #endif
       }
     }
-    
+
     //
     // add the dot product to the current accumulated value
     //
@@ -180,15 +180,15 @@ void PeFunction(int n_inc) {
       Mreal sum = conv_start ? bias_bn.bias : result[w_inc];
       result[w_inc] = sum + dot_sum_fw_vec[w_inc];
     }
-    
+
     //
     // send out the result
-    // 
+    //
     if (input_data_valid && conv_done) {
       PeOutput pe_output;
       #pragma unroll
       for (int w_inc = 0; w_inc < W_VECTOR; w_inc++) {
-        //float bn_data = (result[w_inc] * alpha + beta) * TRANS_INFLAT;  
+        //float bn_data = (result[w_inc] * alpha + beta) * TRANS_INFLAT;
         //int bn_alpha = (result[w_inc] * alpha) >> ALPHA_INFLAT;
         long int bn_alpha_inflat = (long int)result[w_inc] * (long int)bias_bn.alpha;
         int bn_alpha = bn_alpha_inflat >> ALPHA_INFLAT;
@@ -196,28 +196,22 @@ void PeFunction(int n_inc) {
         pe_output.data.v[w_inc] = bn_data > REALMAX ? REALMAX : bn_data < REALMIN ? REALMIN : bn_data;
         pe_output.pe_output_relu = cont.pe_output_relu;
 #ifdef PRINT_PE_OUTPUT
-        if (n_inc == PRINT_N && cycle >= debug_cycle && cycle < debug_cycle + debug_range) 
+        if (n_inc == PRINT_N && cycle >= debug_cycle && cycle < debug_cycle + debug_range)
           printf("PE cycle=%d w_inc=%d result=%d bias_bn.alpha=%d bias_bn.beta=%d pe_output.data.v=%d\frame_index", cycle, w_inc, result[w_inc], bias_bn.alpha, bias_bn.beta, pe_output.data.v[w_inc]);
 #endif
       }
 
       write_channel_intel(pe_output_channel[n_inc], pe_output);
     }
-    
+
     INCREASE_COUNTER(cycle);
-#ifdef ENABLE_INFINITE_LOOPS
     if (COUNTER_DONE(cycle)) { RESET_COUNTER(cycle); }
-#endif
-  }
-#ifdef ENABLE_INFINITE_LOOPS
-  while (1);
-#else
-  while (!COUNTER_DONE(cycle));
-#endif
+  } while (1);
+
 }
 
-AUTORUN TASK kernel void pe_tail() {
-  
+__attribute__((autorun)) TASK kernel void pe_tail() {
+
   while (1) {
     bool valid = false;
 
@@ -270,8 +264,8 @@ void pe_drain(int n_inc) {
   }
 }
 
-#define PE_KERNEL(X) AUTORUN TASK kernel void pe_kernel_##X() { PeFunction(X); }
-#define PE_DRAIN(X) AUTORUN TASK kernel void pe_drain_##X() { pe_drain(X); }
+#define PE_KERNEL(X) __attribute__((autorun)) TASK kernel void pe_kernel_##X() { PeFunction(X); }
+#define PE_DRAIN(X) __attribute__((autorun)) TASK kernel void pe_drain_##X() { pe_drain(X); }
 
 PE_KERNEL(0);
 PE_DRAIN(0);

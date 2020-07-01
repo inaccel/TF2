@@ -5,7 +5,7 @@ you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
-    
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -21,7 +21,7 @@ limitations under the License.
 #include "../../host/inc/cnn.h"
 
 // Functions:
-// 1. Computes the writing address of current layer output feature map data and writes the data to DDR or sends the data to retriever. 
+// 1. Computes the writing address of current layer output feature map data and writes the data to DDR or sends the data to retriever.
 // 2. Optional: Computes the reading address of residual layer output feature map which needs to be added to current layer output feature map.
 // 3. Performs the addition operation for feature map.
 // TODO: Support the condition NARROW_N_VECTOR != N_VECTOR
@@ -42,7 +42,7 @@ TASK kernel void feature_writer(int frame_num, global volatile real* restrict fe
 
   #pragma ivdep
   do {
-    int cycle_end = FEATURE_WRITER_TOTAL_CYCLE;    
+    int cycle_end = FEATURE_WRITER_TOTAL_CYCLE;
     bool new_layer = false;
     int feature_writer_start_cycle = 0;
     int layer_temp = 0;
@@ -60,7 +60,7 @@ TASK kernel void feature_writer(int frame_num, global volatile real* restrict fe
     }
 
     if (new_layer) layer = layer_temp;
-    
+
     int N = kOutputChannels[layer];
     int H = kPoolOutputHeight[layer];
     int W = kPoolOutputWidth[layer];
@@ -86,10 +86,10 @@ TASK kernel void feature_writer(int frame_num, global volatile real* restrict fe
 
       new_layer = false;
     }
-    
+
     PoolTailOutput pool_tail_output;
     pool_tail_output = read_channel_intel(feature_writer_input_channel);
-   
+
     real res_data[W_VECTOR][NARROW_N_VECTOR] = {{0}};
 
     // read res data
@@ -109,15 +109,15 @@ TASK kernel void feature_writer(int frame_num, global volatile real* restrict fe
           res_data[w_inc][n_inc] = feature_ddr[read_res_offset + addr];
         }
       }
-    } 
-   
+    }
+
     int concat_offset = kNStart[layer] / NARROW_N_VECTOR * H * CEIL(W, W_VECTOR);
-        
-    // write feature data 
+
+    // write feature data
     #pragma unroll
     for (int w_inc = 0; w_inc < W_VECTOR; w_inc++) {
       #pragma unroll
-      for (int n_inc = 0; n_inc < NARROW_N_VECTOR; n_inc++) {       
+      for (int n_inc = 0; n_inc < NARROW_N_VECTOR; n_inc++) {
         int ddr_write_offset = (kDDRWriteBase[layer] + concat_offset) * NEXT_POWER_OF_2(W_VECTOR * NARROW_N_VECTOR);
         unsigned long long int addr =
                     (n_vec * NN_VEC + nn_vec) * H * CEIL(W, W_VECTOR) * NEXT_POWER_OF_2(W_VECTOR * NARROW_N_VECTOR) +
@@ -125,19 +125,19 @@ TASK kernel void feature_writer(int frame_num, global volatile real* restrict fe
                     w_vec * NEXT_POWER_OF_2(W_VECTOR * NARROW_N_VECTOR) +
                     w_inc * NARROW_N_VECTOR +
                     n_inc;
-                    
+
         Sreal addition = pool_tail_output.write_data[w_inc][n_inc] + res_data[w_inc][n_inc];
         real addition_real = addition > REALMAX ? REALMAX : addition < REALMIN ? REALMIN : addition; // real range
         real addition_relu = (!kAdditionReluEnable[layer] || addition_real > 0) ? addition_real : 0; // Relu
         pool_tail_output.write_data[w_inc][n_inc] = addition_relu;
 
 #ifdef CONCAT_LAYER_DEBUG
-        int output_offset = 0; 
+        int output_offset = 0;
 #else
-        int output_offset = layer == (NUM_LAYER - 1) ? (OUTPUT_OFFSET + frame_index * OUTPUT_OFFSET) : 0; 
+        int output_offset = layer == (NUM_LAYER - 1) ? (OUTPUT_OFFSET + frame_index * OUTPUT_OFFSET) : 0;
 #endif
 
-        if (kDDRWriteEnable[layer] || layer == (NUM_LAYER - 1)) { 
+        if (kDDRWriteEnable[layer] || layer == (NUM_LAYER - 1)) {
           feature_ddr[ddr_write_offset + output_offset + addr] = addition_relu;
         }
 
@@ -148,15 +148,15 @@ TASK kernel void feature_writer(int frame_num, global volatile real* restrict fe
     int cache_write_offset = kCacheWriteBase[layer];
     int cache_write_addr = cache_write_offset + concat_offset + (n_vec * NN_VEC + nn_vec) * H * CEIL(W, W_VECTOR) + h_vec * CEIL(W, W_VECTOR) + w_vec;
     pool_tail_output.cache_write_addr = cache_write_addr;
-     
+
     if (kCacheWriteEnable[layer] && !kEndPoolEnable[layer]) {
       write_channel_intel(retriever_input_channel, pool_tail_output);
     }
 
     if (kEndPoolEnable[layer]) {
       write_channel_intel(end_pool_input_channel, pool_tail_output);
-    } 
-    
+    }
+
     INCREASE_COUNTER(nn_vec);
     if (COUNTER_DONE(nn_vec)) { RESET_COUNTER(nn_vec); INCREASE_COUNTER(w_vec); }
     if (COUNTER_DONE(w_vec))  { RESET_COUNTER(w_vec);  INCREASE_COUNTER(h_vec); }
@@ -165,7 +165,7 @@ TASK kernel void feature_writer(int frame_num, global volatile real* restrict fe
     INCREASE_COUNTER(cycle);
 
     if (COUNTER_DONE(cycle))  { RESET_COUNTER(cycle); INCREASE_COUNTER(frame_index);}
-    
+
   } while (!COUNTER_DONE(frame_index));
 
 }

@@ -5,7 +5,7 @@ you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
-    
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -21,7 +21,7 @@ limitations under the License.
 #include "../../host/inc/cnn.h"
 
 // Functions:
-// Loads the entire input image of the first layer from DDR   
+// Loads the entire input image of the first layer from DDR
 
 kernel void input_reader(int frame_num, global volatile const real* restrict input_buffer) {
   INIT_COUNTER(frame_index);
@@ -29,9 +29,9 @@ kernel void input_reader(int frame_num, global volatile const real* restrict inp
   INIT_COUNTER(c_vec);
   INIT_COUNTER(h);
   INIT_COUNTER(w_vec);
-  
+
   int cycle_end = INPUT_READER_CYCLE;
-  
+
   do {
     int C = kInputChannels[0];
     int H = kInputHeight[0];
@@ -39,7 +39,7 @@ kernel void input_reader(int frame_num, global volatile const real* restrict inp
 
     int C_VEC = CEIL(kInputChannels[0], C_VECTOR);
     int END_WW = CEIL(kInputWidth[0], W_VECTOR);
-    
+
     SET_COUNTER(frame_index, frame_num, 0, frame_num, 1);
     SET_COUNTER(cycle, cycle_end, 0, cycle_end, 1);
     SET_COUNTER(c_vec, C_VEC, 0, C_VEC, 1);
@@ -81,7 +81,7 @@ kernel void input_reader(int frame_num, global volatile const real* restrict inp
     if (COUNTER_DONE(w_vec))  { RESET_COUNTER(w_vec); INCREASE_COUNTER(h); }
     if (COUNTER_DONE(h))      { RESET_COUNTER(h); INCREASE_COUNTER(c_vec); }
     if (COUNTER_DONE(c_vec))  { RESET_COUNTER(c_vec); }
-    
+
     INCREASE_COUNTER(cycle);
     if (COUNTER_DONE(cycle)) { INCREASE_COUNTER(frame_index);  RESET_COUNTER(cycle); RESET_COUNTER(c_vec); RESET_COUNTER(h); RESET_COUNTER(w_vec); }
 

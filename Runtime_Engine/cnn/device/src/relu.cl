@@ -5,7 +5,7 @@ you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
-    
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -36,8 +36,9 @@ limitations under the License.
 
 TASK kernel void relu(int frame_num) {
 
+  INIT_COUNTER(frame_index);
   INIT_COUNTER(cycle);
-  
+
   int cycle_end = CONV_TOTAL_WRITE_CACHE;
 
 #ifdef PRINT_CYCLE
@@ -45,6 +46,7 @@ TASK kernel void relu(int frame_num) {
 #endif
 
   do {
+    SET_COUNTER(frame_index, frame_num, 0, frame_num, 1);
     SET_COUNTER(cycle, cycle_end, 0, cycle_end, 1);
 
     //printf("RELU cycle=%d/%d\n", cycle, cycle_end);
@@ -56,9 +58,9 @@ TASK kernel void relu(int frame_num) {
       for (int n_inc = 0; n_inc < NARROW_N_VECTOR; n_inc++) {
         pe_output[n_inc] = read_channel_intel(pe_drain_output_channel[N_VECTOR -  NARROW_N_VECTOR + n_inc]);
       }
-	    
+
       bool is_QVECTOR = pe_output[0].is_QVECTOR;
-      
+
       ReluOutput relu_output;
 
       #pragma unroll
@@ -74,13 +76,8 @@ TASK kernel void relu(int frame_num) {
     } FAST_LOOP_END(nn_vec);
 
     INCREASE_COUNTER(cycle);
-#ifdef ENABLE_INFINITE_LOOPS
-    if (COUNTER_DONE(cycle)) { RESET_COUNTER(cycle); }
-#endif
-  }
-#ifdef ENABLE_INFINITE_LOOPS
-  while (1);
-#else
-  while (!COUNTER_DONE(cycle));
-#endif
+    if (COUNTER_DONE(cycle))  { RESET_COUNTER(cycle); INCREASE_COUNTER(frame_index); }
+
+  } while (!COUNTER_DONE(frame_index));
+
 }
