@@ -13,19 +13,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef __NETWORK_HELPER_H__
-#define __NETWORK_HELPER_H__
+#ifndef __MODEL_H__
+#define __MODEL_H__
 
+#include <inaccel/coral>
 #include "includes.h"
 
-typedef struct {
-  int label;
-  float feature;
-} StatItem;
+class Model {
+public:
+    Model(const std::string &model_file, const std::string &q_file);
+    ~Model();
 
-void Verify(int n, char *file_name, char *q, real *output);
-void Evaluation(int n, char *q, const std::string &image_file, const std::vector<imagenet_content> &imagecontents, const real* output);
-void LoadLabel(int Num,int *labels);
-void LoadLabel_imagenet(std::vector<imagenet_content> &imagecontents);
+    char* q = NULL;
+
+    inaccel::vector<BiasBnParam> *bias_bn = NULL;
+    inaccel::vector<real> *filter_real = NULL;
+    inaccel::vector<int> *wait_after_conv_cycles = NULL;
+
+    // int top_labels[5];
+
+private:
+    std::string model_file;
+    std::string q_file;
+    real* filter_raw = NULL;
+    real* filter = NULL;
+};
 
 #endif

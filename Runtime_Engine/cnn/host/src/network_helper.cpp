@@ -25,7 +25,6 @@ void Verify(int n, char *file_name, char *q, real *output) {
   int width = kPoolOutputWidth[NUM_LAYER - 1];
   int height = kPoolOutputHeight[NUM_LAYER - 1];
 
-  //int size = 832 * width * height; // for concat layer splitted branch pool output debug
   int size = output_channel * width * height;
   float *expect = (float*)alignedMalloc(sizeof(float) * size);
   if (!expect) {
@@ -33,52 +32,12 @@ void Verify(int n, char *file_name, char *q, real *output) {
   }
 
   FILE *fp;
-  //std::string file_name = "model/googlenet/pool1_3x3_s2.bin";
-  //std::string file_name = "model/googlenet/conv2_3x3_reduce.bin";
-  //std::string file_name = "model/googlenet/pool2_3x3_s2.bin";
-  //std::string file_name = "model/googlenet/inception_3a_1x1.bin";
-  //std::string file_name = "model/googlenet/inception_3a_3x3_reduce.bin";
-  //std::string file_name = "model/googlenet/inception_3a_3x3.bin";
-  //std::string file_name = "model/googlenet/inception_3a_5x5_reduce.bin";
-  //std::string file_name = "model/googlenet/inception_3a_5x5.bin";
-  //std::string file_name = "model/googlenet/inception_3a_pool.bin";
-  //std::string file_name = "model/googlenet/inception_3a_pool_proj.bin";
-  //std::string file_name = "model/googlenet/inception_3a_output.bin";
-  //std::string file_name = "model/googlenet/inception_3b_1x1.bin";
-  //std::string file_name = "model/googlenet/inception_3b_3x3_reduce.bin";
-  //std::string file_name = "model/googlenet/inception_3b_3x3.bin";
-  //std::string file_name = "model/googlenet/inception_3b_5x5_reduce.bin";
-  //std::string file_name = "model/googlenet/inception_3b_5x5.bin";
-  //std::string file_name = "model/googlenet/inception_3b_pool.bin";
-  //std::string file_name = "model/googlenet/inception_3b_pool_proj.bin";
-  //std::string file_name = "model/googlenet/pool3_3x3_s2.bin";
-  //std::string file_name = "model/googlenet/inception_4a_output.bin";
-  //std::string file_name = "model/googlenet/inception_4b_5x5.bin";
-  //std::string file_name = "model/googlenet/inception_4b_pool.bin";
-  //std::string file_name = "model/googlenet/inception_4b_pool_proj.bin";
-  //std::string file_name = "model/googlenet/inception_4b_output.bin";
-  //std::string file_name = "model/googlenet/inception_4c_output.bin";
-  //std::string file_name = "model/googlenet/inception_4d_output.bin";
-  //std::string file_name = "model/googlenet/inception_4e_1x1.bin";
-  //std::string file_name = "model/googlenet/inception_4e_3x3_reduce.bin";
-  //std::string file_name = "model/googlenet/inception_4e_3x3.bin";
-  //std::string file_name = "model/googlenet/inception_4e_5x5.bin";
-  //std::string file_name = "model/googlenet/inception_4e_pool.bin";
-  //std::string file_name = "model/googlenet/inception_4e_pool_proj.bin";
-  //std::string file_name = "model/googlenet/inception_4e_output.bin";
-  //std::string file_name = "model/googlenet/pool4_3x3_s2.bin";
-  //std::string file_name = "model/googlenet/inception_5a_output.bin";
-  //std::string file_name = "model/googlenet/inception_5b_output.bin";
-  //std::string file_name = "model/googlenet/loss3_classifier.bin";
-  //std::string file_name = "model/resnet50/pool1.bin";
-  //std::string file_name = "model/resnet50/fc1000.bin";
-  //std::string file_name = "model/ResNet50_pruned/fc1000.bin";
-
   fp = fopen(file_name, "r");
   if (!fp) {
     ERROR("fopen file error!\n");
   }
-  fread(expect, sizeof(float), size, fp);
+  size_t bytes = fread(expect, sizeof(float), size, fp);
+  if(!bytes) exit(1);
 
   fclose(fp);
 
@@ -116,7 +75,6 @@ void Verify(int n, char *file_name, char *q, real *output) {
                     w_vec * NEXT_POWER_OF_2(W_VECTOR * NARROW_N_VECTOR) +
                     ww * NARROW_N_VECTOR +
                     nn;;
-        //int addr_exp = ( n + kNStart[ NUM_LAYER - 1 ] ) * H * W + h * W + w; // for concat layer splitted branch pool output debug
         int addr_exp = n * H * W + h * W + w;
         float expect_val = expect[addr_exp];
 #ifdef CONCAT_LAYER_DEBUG
@@ -140,7 +98,7 @@ void Verify(int n, char *file_name, char *q, real *output) {
   if (expect) free(expect);
 }
 
-void Evaluation(int n, char* q, real* output, int* top_labels) {
+void Evaluation(int n, char* q, const std::string &image_file, const std::vector<imagenet_content> &imagecontents, const real* output) {
   int output_channel = kOutputChannels[NUM_LAYER - 1];
   int width = 1;
   int height = 1;
@@ -197,10 +155,9 @@ void Evaluation(int n, char* q, real* output, int* top_labels) {
     }
   }
 
+  INFO("IMAGE: [%s]\n", image_file.c_str());
   for (int i = 0; i < 5; i++) {
-    top_labels[i] = stat_array[output_channel - i - 1].label;
-    //INFO( "rank=%d\tlabel=%5d\tfeature=%f\n", i, top_labels[i], stat_array[ output_channel - i - 1 ].feature );
-    INFO("rank=%d\tlabel=%5d\tprobability=%f\n", i, top_labels[i], exp(stat_array[output_channel - i - 1].feature) / sum_exp);
+    INFO("\t[Rank %d] [Label: %3d] [Prediction: %s] [Probability: %f]\n", i, stat_array[output_channel - i - 1].label, imagecontents[stat_array[output_channel - i - 1].label].label_name.c_str(), exp(stat_array[output_channel - i - 1].feature) / sum_exp);
   }
 
   fclose(fp);
@@ -214,8 +171,57 @@ void LoadLabel(int Num,int *labels) {
   }
 
   for (int i = 0; i < Num; i++) {
-    fscanf(fp,"%d",&labels[i]);
+    int items = fscanf(fp,"%d",&labels[i]);
+    if (!items) exit(1);
   }
 
   fclose(fp);
+}
+
+void LoadLabel_imagenet(std::vector<imagenet_content> &imagecontents) {
+	std::ifstream fin("host/model/imagenet1000_clsid_to_human.txt");
+	std::string line;
+	int position, pos_s_m_start, pos_d_m_start, pos_m_end, pos_q_end;
+
+	if(fin) {
+		while(getline(fin,line)) {
+			imagenet_content image_item;
+			position = line.find(": ");
+
+			std::string imgnet_mid_arr_index = line.substr(0,position);
+
+			std::string imgnet_mid_arr_content_mid = line.substr(position+2,line.size()-1);
+
+			std::string imgnet_mid_arr_content_q, imgnet_mid_arr_content;
+
+			pos_d_m_start = imgnet_mid_arr_content_mid.find_first_of("\"");
+
+			if(pos_d_m_start != -1) {
+				pos_m_end = imgnet_mid_arr_content_mid.find_last_of("\"");
+				imgnet_mid_arr_content_q = imgnet_mid_arr_content_mid.substr(pos_d_m_start+1,pos_m_end-1);
+			} else {
+				pos_s_m_start = imgnet_mid_arr_content_mid.find_first_of("\'");
+				pos_m_end = imgnet_mid_arr_content_mid.find_last_of("\'");
+				imgnet_mid_arr_content_q = imgnet_mid_arr_content_mid.substr(pos_s_m_start+1,pos_m_end-1);
+			}
+
+			pos_q_end = imgnet_mid_arr_content_q.find_first_of(",");
+
+			if( pos_q_end != -1) {
+				imgnet_mid_arr_content = imgnet_mid_arr_content_q.substr(0,pos_q_end);
+			} else {
+				imgnet_mid_arr_content = imgnet_mid_arr_content_q;
+			}
+
+			image_item.index = atoi(imgnet_mid_arr_index.c_str());
+			image_item.label_name = imgnet_mid_arr_content.c_str();
+			imagecontents.push_back(image_item);
+		}
+	} else {
+		/* code */
+		std::cout << "fail to open file imagenet1000.txt" << std::endl;
+		exit(1);
+	}
+
+	fin.close();
 }

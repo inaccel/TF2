@@ -5,7 +5,7 @@ you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
-    
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -104,7 +104,7 @@ char Get_real(float data, char expand) {
     sign = 1;
     data =- data;
   }
-	
+
   for (int i = 0; i < 15; i++) {
     float temps = 1.0f / (1 << i);
     if (data > 0.99 * temps && data < 1.01 * temps) {
@@ -126,16 +126,16 @@ char Get_real(float data, char expand) {
 }
 
 // filter_raw[N][C][H][W]
-void LoadModel(char *filename, real *filter_raw, BiasBnParam *bias_bn, char *q) {
+void LoadModel(const std::string& filename, real *filter_raw, BiasBnParam *bias_bn, char *q) {
   FILE* infile;
-  if ((infile = fopen(filename, "rb")) == NULL) {
-    printf("Error in search of %s in LoadModel modulus\n",filename);
+  if ((infile = fopen(filename.c_str(), "rb")) == NULL) {
+    printf("Error in search of %s in LoadModel modulus\n",filename.c_str());
     exit(1);
   }
 
   int filter_addr_offset = 0;
   int bias_addr_offset = 0;
-  
+
   // load whole model
   int q_offset = 0;
   for (int layer = 0; layer < NUM_LAYER; layer++) {
@@ -144,27 +144,28 @@ void LoadModel(char *filename, real *filter_raw, BiasBnParam *bias_bn, char *q) 
     float scale_factor = 0;
     float alpha[MAX_OUTPUT_CHANNEL] = {0};
     float beta[MAX_OUTPUT_CHANNEL] = {0};
-    
+
     int C = layer == 0 ? INPUT_IMAGE_C : kInputChannels[layer];
-      
+
     int H = layer == 0 ? FIRST_FILTER_SIZE : kFilterSize[layer];
     int W = layer == 0 ? FIRST_FILTER_SIZE : kFilterSize[layer];
     int N = kOutputChannels[layer];
-    	  
-    if (!kIpoolEnable[layer]) { 
+
+    if (!kIpoolEnable[layer]) {
       for (int n = 0; n < N; n++) {
         for (int c = 0; c < C; c++) {
           int q_fixed;
-            
+
           q_fixed = q[kInputLayer[layer] * MAX_OUT_CHANNEL + c];
-          
-          int q_fixed_gap = q[q_offset + MAX_OUT_CHANNEL + n]; 
+
+          int q_fixed_gap = q[q_offset + MAX_OUT_CHANNEL + n];
           char expand = INFLAT + q_fixed - q_fixed_gap;
-          
+
           for (int h = 0; h < H; h++) {
             for (int w = 0; w < W; w++) {
               float filter_tems;
-              fread(&filter_tems, sizeof(float), 1, infile);
+              size_t bytes = fread(&filter_tems, sizeof(float), 1, infile);
+              if (!bytes) exit(1);
               filter_raw[filter_addr_offset + n * C * H * W + c * H * W + h * W + w] = Get_real(filter_tems, expand);
             }
           }
@@ -173,42 +174,48 @@ void LoadModel(char *filename, real *filter_raw, BiasBnParam *bias_bn, char *q) 
     }
 
     // bias
-    if (kBiasEnable[layer]) {				  
+    if (kBiasEnable[layer]) {
       for (int n = 0; n < N; n++) {
         int q_fixed_gap = q[q_offset + MAX_OUT_CHANNEL + n];
         float bias_trans_coe = 1 << (INFLAT - q_fixed_gap);
 	float bias_data;
-        fread( &bias_data, sizeof(float), 1, infile );
-	bias_bn[bias_addr_offset + n].bias = bias_data * bias_trans_coe;    
+        size_t bytes = fread( &bias_data, sizeof(float), 1, infile );
+        if (!bytes) exit(1);
+	bias_bn[bias_addr_offset + n].bias = bias_data * bias_trans_coe;
       }
     } else {
       for (int n = 0; n < N; n++) {
         bias_bn[bias_addr_offset + n].bias=0;
       }
-    }	
+    }
 
     if (kBnEnable[layer]) {
       // mean
       for (int n = 0; n < N; n++) {
-        fread(&mean[n], sizeof(float), 1, infile);
+        size_t bytes = fread(&mean[n], sizeof(float), 1, infile);
+        if (!bytes) exit(1);
       }
 
       // variance
       for (int n = 0; n < N; n++) {
-        fread( &variance[n], sizeof(float), 1, infile);
+        size_t bytes = fread( &variance[n], sizeof(float), 1, infile);
+        if (!bytes) exit(1);
       }
 
       // scale_factor
-      fread(&scale_factor, sizeof(float), 1, infile);
+      size_t bytes = fread(&scale_factor, sizeof(float), 1, infile);
+      if (!bytes) exit(1);
 
       // alpha
       for (int n = 0; n < N; n++) {
-        fread(&alpha[n], sizeof(float), 1, infile);
+        size_t bytes = fread(&alpha[n], sizeof(float), 1, infile);
+        if (!bytes) exit(1);
       }
 
       // beta
       for (int n = 0; n < N; n++) {
-        fread(&beta[n], sizeof(float), 1, infile);
+        size_t bytes = fread(&beta[n], sizeof(float), 1, infile);
+        if (!bytes) exit(1);
       }
     }
 
@@ -219,12 +226,12 @@ void LoadModel(char *filename, real *filter_raw, BiasBnParam *bias_bn, char *q) 
       float alpha_data;
       float beta_data;
       float eps = 0.00001;
-      
+
       a = mean[n] / scale_factor;
       b = sqrt( variance[n] / scale_factor + eps );
       alpha_data = kBnEnable[layer] ? alpha[n] / b : 1.0;
       beta_data = kBnEnable[layer] ? - (alpha[n] / b * a) + beta[n] : 0.0;
-      
+
       int q_fixed_gap = q[q_offset + MAX_OUT_CHANNEL + n];
       float bias_trans_coe = 1 << (INFLAT - q_fixed_gap);
       bias_bn[bias_addr_offset + n].alpha = alpha_data * pow(2, ALPHA_INFLAT);
@@ -240,8 +247,8 @@ void LoadModel(char *filename, real *filter_raw, BiasBnParam *bias_bn, char *q) 
   }
 
   fclose(infile);
-  
-  // convert first layer kernel size to 3 
+
+  // convert first layer kernel size to 3
   int Trans_size = 64 * 3 * 3 * 3 * 3 * 3;
   real *first_layer_filter_trans = (real*)malloc(sizeof(real) * Trans_size);
   memset(first_layer_filter_trans, 0, sizeof(real)*64*9*27);
@@ -250,10 +257,10 @@ void LoadModel(char *filename, real *filter_raw, BiasBnParam *bias_bn, char *q) 
       filter_trans(filter_raw + input_channel * 49 + out_channel * 49 * 3, first_layer_filter_trans + 9 * 9 * 3 * out_channel + 3 * 3 * 3 * 3 * input_channel);
     }
   }
- 
+
   for (int i = 0; i < Trans_size; i++)
     filter_raw[i] = first_layer_filter_trans[i];
- 
+
   free(first_layer_filter_trans);
 }
 
@@ -267,7 +274,7 @@ void FilterConvert(real *filter, real *filter_raw, real *filter_real) {
   for (int layer = 0; layer < NUM_LAYER; layer++) {
     int C = kInputChannels[layer];
 
-    // copy filter      
+    // copy filter
     int FH = kFilterSize[layer];
     int FW = kFilterSize[layer];
     int FW_VEC = CEIL(FW, FW_VECTOR);
@@ -282,17 +289,17 @@ void FilterConvert(real *filter, real *filter_raw, real *filter_real) {
             for (int n_inc = 0; n_inc < N_VECTOR; n_inc++) {
 
               // Following is for the storage of FW_VECTOR*C_VECTOR data in filter_buf;
-              real filter_buf[FW_VECTOR][C_VECTOR] = {{0}};//FW_VECTOR*C_VECTOR 
-              // for(int fw_inc = 0; fw_inc < FW_VECTOR; fw_inc++) { 
+              real filter_buf[FW_VECTOR][C_VECTOR] = {{0}};//FW_VECTOR*C_VECTOR
+              // for(int fw_inc = 0; fw_inc < FW_VECTOR; fw_inc++) {
               for (int fw_inc = 0; fw_inc < FW_VECTOR; fw_inc++) {
                 for (int c_inc = 0; c_inc < C_VECTOR; c_inc++) {
                   int n = n_vec * N_VECTOR + n_inc;
                   int c = FH == 1 ? c_vec * C_VECTOR * FW_VECTOR + C_VECTOR * fw_inc + c_inc : c_vec * C_VECTOR + c_inc;
                   int fw = FH == 1 ? 0 : fw_vec * FW_VECTOR + fw_inc;
                   bool not_out_of_bounds = ( n < N && c < C && fw < FW );
-                  
+
                   unsigned long long int filter_raw_addr = conv_filter_raw_offset + n * (C * FH * FW) + c * FH * FW + fh * FW + fw;
- 
+
                   unsigned long long int addr =
                       conv_filter_offset +
                       n_vec * C_VEC * FH * FW_VEC * N_VECTOR * NEXT_POWER_OF_2(FW_VECTOR * C_VECTOR) +
@@ -313,12 +320,10 @@ void FilterConvert(real *filter, real *filter_raw, real *filter_real) {
         }
       }
     }
-    
+
     if (layer < (NUM_LAYER - 1)) {
       conv_filter_offset += MAX_FILTER_SIZE * NEXT_POWER_OF_2(FW_VECTOR * C_VECTOR);
       conv_filter_raw_offset += MAX_FILTER_SIZE * NEXT_POWER_OF_2(FW_VECTOR * C_VECTOR);
     }
   }
 }
-
-

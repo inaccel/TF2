@@ -1,30 +1,38 @@
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <dirent.h>
+#include <unistd.h>
+
 #include "includes.h"
 
 void *alignedMalloc(size_t size) {
   void *result = NULL;
-  posix_memalign (&result, 64, size);
+  if(posix_memalign (&result, 64, size))
+    perror("Could not allocate aligned memory.");
   return result;
 }
 
-// Sets the current working directory to be the same as the directory
-// containing the running executable.
-bool setCwdToExeDir() {
-  // Get path of executable.
-  char path[300];
-  ssize_t n = readlink("/proc/self/exe", path, sizeof(path)/sizeof(path[0]) - 1);
-  if(n == -1) {
-    return false;
-  }
-  path[n] = 0;
+// Function that stores all the filenames found under the specified directroy
+// in a std::vector<std::string>.
+void read_directory(const std::string& dirName, std::vector<std::string>& v) {
+    DIR* dir = opendir(dirName.c_str());
+    if (!dir) return;
 
-  // Find the last '\' or '/' and terminate the path there; it is now
-  // the directory containing the executable.
-  size_t i;
-  for(i = strlen(path) - 1; i > 0 && path[i] != '/' && path[i] != '\\'; --i);
-  path[i] = '\0';
+    struct stat s;
+    struct dirent * entry;
 
-  // Change the current directory.     // Linux
-  chdir(path);
+    if (lstat(dirName.c_str(), &s) != 0 || !S_ISDIR(s.st_mode)) return;
 
-  return true;
+    while ((entry = readdir(dir)) != NULL) {
+        std::string filename = dirName + "/" + entry->d_name;
+        if (lstat(filename.c_str(), &s) == 0 && S_ISDIR(s.st_mode)) {
+            if ((filename == (dirName + "/.")) || (filename == (dirName + "/..")))
+                continue;
+            /*if the directory isn't . or ..*/
+            else read_directory(filename, v);
+        }
+        else v.push_back(filename);
+    }
+
+    closedir(dir);
 }

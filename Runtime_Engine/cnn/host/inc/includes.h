@@ -33,8 +33,15 @@ limitations under the License.
 #include <cstring>
 #include <vector>
 #include <assert.h>
+#include <chrono>
 
+#include "opencv2/opencv.hpp"
 #include "debug.h"
+
+typedef struct{
+  int index;
+  std::string label_name;
+} imagenet_content;
 
 // cnn includes
 #include "cnn.h"
@@ -44,10 +51,10 @@ limitations under the License.
 #include "quantization.h"
 
 #include "network_helper.h"
-#include "network.h"
+#include "model.h"
 #include "runner.h"
 
 void *alignedMalloc(size_t size);
-bool setCwdToExeDir();
+void read_directory(const std::string& name, std::vector<std::string>& v);
 
 #endif

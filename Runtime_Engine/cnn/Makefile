@@ -23,7 +23,7 @@ endif
 CXX := g++ -fPIC -std=c++11
 
 # Target
-TARGET := host
+TARGET := tf2
 TARGET_DIR := bin
 
 # Directories
@@ -33,7 +33,7 @@ LIB_DIRS :=
 # Files
 INCS := $(wildcard)
 SRCS := $(wildcard host/src/*.cpp)
-LIBS := rt pthread coral-api
+LIBS := rt pthread opencv_core opencv_imgproc opencv_highgui opencv_ml opencv_imgcodecs coral-api
 
 # Make it all!
 all : $(TARGET_DIR)/$(TARGET)
@@ -43,7 +43,7 @@ $(TARGET_DIR)/$(TARGET) : Makefile $(SRCS) $(INCS) $(TARGET_DIR)
 	$(ECHO)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -fPIC $(foreach D,$(INC_DIRS),-I$D) \
 			$(SRCS) \
 			$(foreach D,$(LIB_DIRS),-L$D) \
-			$(foreach L,$(LIBS),-l$L) \
+			$(foreach L,$(LIBS),-l$L) -fopenmp \
 			-o $(TARGET_DIR)/$(TARGET)
 
 $(TARGET_DIR) :

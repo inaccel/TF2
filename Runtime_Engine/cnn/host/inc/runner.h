@@ -18,19 +18,6 @@ limitations under the License.
 
 #include "includes.h"
 
-class Runner {
-public:
-  Runner(NetWork &network);
-
-  void Init();
-
-  void Run();
-
-private:
-
-  NetWork network;
-  char *image_file;
-  int num_images;
-};
+void run(Model &model, std::vector<std::string> image_files, std::vector<imagenet_content> &imagecontents, int idx, int batch_size);
 
 #endif

@@ -16,44 +16,50 @@ limitations under the License.
 #include "includes.h"
 
 int main(int argc, char **argv) {
-  if (argc != 6) {
-    INFO("USAGE:\n%s <model_file> <quantization_file> <image_file> <verify_file> <num_images>\n", argv[0]);
-    return 1;
-  }
+    if (argc != 5) {
+        INFO("USAGE:\n%s <model_file> <quantization_file> <images_dir> <batch_size>\n", argv[0]);
+        return 1;
+    }
 
-  char *model_file = argv[1];
-  char *q_file = argv[2];
-  char *image_file = argv[3];
-  char *verify_file_name = argv[4];
-  int num_images = atoi(argv[5]);
+    std::string model_file = std::string(argv[1]);
+    std::string q_file = std::string(argv[2]);
+    std::string images_dir = std::string(argv[3]);
+    int batch_size = atoi(argv[4]);
 
-  INFO("model_file = %s\n", model_file);
-  INFO("q_file = %s\n", q_file);
-  INFO("image_file  = %s\n", image_file);
-  INFO("verify_file_name = %s\n", verify_file_name);
-  INFO("num_images = %d\n", num_images);
+    INFO("model_file = %s\n", model_file.c_str());
+    INFO("q_file = %s\n", q_file.c_str());
+    INFO("images_dir  = %s\n", images_dir.c_str());
+    INFO("batch_size = %d\n", batch_size);
 
-  if (!setCwdToExeDir()) {
-    return false;
-  }
+    auto start = std::chrono::high_resolution_clock::now();
 
-  NetWork network;
-  if (!network.Init(model_file, q_file, image_file, num_images)) {
-    return -1;
-  }
+    // Prepare filter_real, bias_bn, wait_after_conv_cycles for all requests
+    Model model(model_file, q_file);
 
-  Runner runner(network);
-  runner.Init();
-  runner.Run();
+    // Read all the (image) file names under given directory
+    std::vector<std::string> image_files;
+    read_directory(images_dir, image_files);
 
-  // verification
-  for (int i = 0; i < num_images; i++) {
-    Verify(i, verify_file_name, network.q, network.output->data());
-    Evaluation(i, network.q, network.output->data(), network.top_labels);
-  }
+    int num_batches = CEIL(image_files.size(), batch_size);
 
-  // CleanUp
-  network.CleanUp();
+    // Read the image labels from 'imagenet1000_clsid_to_human.txt'
+    std::vector<imagenet_content> image_labels;
+    LoadLabel_imagenet(image_labels);
 
-  return 0;
+    // Run on the FPGA issuing run function on batches in parallel
+    #pragma omp parallel for num_threads(16)
+    for (int idx = 0; idx < num_batches; idx++) {
+        run(model, image_files, image_labels, idx, batch_size);
+    }
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    float seconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() / 1000.0f;
+
+    std::cout << "\n -- Throughput Summary:\n";
+    std::cout << "       Total duration:   " << seconds << "s\n";
+    std::cout << std::setprecision(4);
+    std::cout << "       Avg throughput:   " << image_files.size() / seconds << " fps\n\n";
+
+    return 0;
 }

@@ -5,7 +5,7 @@ you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
-    
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -23,6 +23,14 @@ limitations under the License.
 #define OUTPUT_WIDTH (NDIM_W/2)
 #define OUTPUT_HEIGHT (NDIM_H/2)
 #define OUTPUTDIMS 114  // 114-3+1=112;
+
+// Implement OpenCV custom handler to suppress console output in errors.
+// This is just a quick workardound to support both LoadInputJpeg and LoadInputImage
+// without having the user specify if the input images are in JPEG format or not.
+int handleError( int status, const char* func_name, const char* err_msg, const char* file_name, int line, void* userdata ) {
+    //Do nothing
+    return 0;
+}
 
 void feature_trans(float *Feas,float *finals_feas)
 {
@@ -72,16 +80,110 @@ void feature_trans(float *Feas,float *finals_feas)
   }
 }
 
+void LoadInputJpeg(const std::string &image_name, float *input_raw) {
+  INFO("LoadInputJpeg image_name=%s\n", image_name.c_str());
+
+  std::vector<cv::Mat> channels;
+  cv::Mat src, dst1, dst2;
+
+  unsigned char C = 3;
+  unsigned char H = 224;
+  unsigned char W = 224;
+
+  int  H_middle = 256;
+  int  W_middle = 256;
+
+  float googlenet_mean[3] = {104, 117, 123};
+
+  FILE *fp;
+  fp = fopen( "host/model/mean.bin", "rb" );
+  if (!fp) exit(1);
+
+  // 256 * 256 preprocess
+  try {
+    cv::redirectError(handleError);
+    src = cv::imread( image_name );
+    resize( src, dst2, cvSize( H_middle, W_middle ) );
+    cv::split( dst2, channels );
+  } catch (...) {
+     fclose(fp);
+     INFO("Falling back to LoadInputImage for image: %s\n", image_name.c_str());
+     LoadInputImage(image_name, input_raw);
+     return;
+  }
+
+  float *middle_images = (float*) malloc( sizeof(float) * C * H_middle * W_middle );
+
+  float *raw_images = (float*) malloc(sizeof(float) * INPUT_IMAGE_C * INPUT_IMAGE_H * INPUT_IMAGE_W * 2);
+  if (raw_images == NULL) ERROR("Cannot allocate enough space for raw_images\n");
+
+  for(int c = 0; c < C; c++) {
+    for(int h = 0; h < H_middle; h++) {
+      for(int w = 0; w < W_middle; w++) {
+        int addr = c * H_middle * W_middle + h * W_middle + w;
+        float mean;
+#if (defined RESNET50) || (defined RESNET50_PRUNED)
+        size_t bytes = fread( &mean, sizeof(float), 1, fp );
+        if (!bytes) exit(1);
+#else
+        mean = googlenet_mean[c];
+#endif
+        middle_images[addr] = channels[c].at<uchar>(h,w) - mean;
+        //printf( "c=%d h=%d w=%d middle_images[%d]=%f mean=%f\n", c, h, w, addr, middle_images[addr], mean );
+      }
+    }
+  }
+
+  // crop operation
+  int H_edge = ( H_middle - H ) / 2;
+  int W_edge = ( W_middle - W ) / 2;
+
+  for(int c = 0; c < C; c++) {
+    for(int h = 0; h < H; h++) {
+      for(int w = 0; w < W; w++) {
+        int addr1 = c * H_middle * W_middle + ( h + H_edge ) * W_middle + ( w + W_edge);
+        int addr2 = c * H * W + h * W + w;
+        raw_images[addr2] = middle_images[addr1];
+        //printf( "c=%d h=%d w=%d addr1=%d raw_images[%d]=%f\n", c, h, w, addr1, addr2, raw_images[addr2] );
+      }
+    }
+  }
+
+  unsigned char CC = 27;
+  unsigned char HH = 115;
+  unsigned char WW = 115;
+  float *new_input=(float*)malloc(sizeof(float) * CC * HH * WW + 1000);
+  for(int i = 0; i < 3; i++) {
+    feature_trans(raw_images + i * H * W, new_input + 9 * i * OUTPUT_HEIGHT * OUTPUT_WIDTH);
+  }
+
+  for(int i = 0; i < 27; i++) {
+    for(int j = 0; j < 114; j++) {
+      for(int k = 0; k < 114; k++) {
+        input_raw[i * 114 * 114 + j * 114 + k]=new_input[i * WW * HH + j * WW + k];
+      }
+    }
+  }
+
+  fclose(fp);
+  free(middle_images);
+  free(new_input);
+  free(raw_images);
+}
+
 // load input raw image data:[C][H][W]
-void LoadInputImage(char *image_name, float *input_raw, float *raw_images, int iter) {
-  INFO("LoadInputImage image_name=%s\n", image_name);
+void LoadInputImage(const std::string &image_name, float *input_raw) {
+  INFO("LoadInputImage image_name=%s\n", image_name.c_str());
   unsigned char C = INPUT_IMAGE_C;
   unsigned char H = INPUT_IMAGE_H;
   unsigned char W = INPUT_IMAGE_W;
 
+  float *raw_images = (float*) malloc(sizeof(float) * INPUT_IMAGE_C * INPUT_IMAGE_H * INPUT_IMAGE_W * 2);
+  if (raw_images == NULL) ERROR("Cannot allocate enough space for raw_images\n");
+
   FILE *fp;
-  if ((fp = fopen(image_name, "rb"))==NULL){
-    printf("load input image : %s Error\n",image_name);
+  if ((fp = fopen(image_name.c_str(), "rb"))==NULL){
+    printf("load input image : %s Error\n",image_name.c_str());
     exit(1);
   }
 
@@ -89,13 +191,14 @@ void LoadInputImage(char *image_name, float *input_raw, float *raw_images, int i
     for (int h = 0; h < H; h++) {
       for (int w = 0; w < W; w++) {
         int addr = c * H * W + h * W + w;
-        fread( &raw_images[addr], sizeof(float), 1, fp );
+        size_t bytes = fread( &raw_images[addr], sizeof(float), 1, fp );
+        if(!bytes) exit(1);
       }
     }
   }
   fclose(fp);
 
-  // The below code is just for Resnet50 and GoogLeNet and will remove later.  
+  // The below code is just for Resnet50 and GoogLeNet and will remove later.
   unsigned char CC = 27;
   unsigned char HH = 115;
   unsigned char WW = 115;
@@ -113,6 +216,7 @@ void LoadInputImage(char *image_name, float *input_raw, float *raw_images, int i
   }
 
   free(new_input);
+  free(raw_images);
 }
 
 // input_raw[C][H][W]
@@ -152,4 +256,3 @@ void InputConvert(float *input_raw, float *input, int num_images)
     }
   }
 }
-
