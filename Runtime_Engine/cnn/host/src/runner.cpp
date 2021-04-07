@@ -63,7 +63,7 @@ void run_on_fpga(Model &model, inaccel::vector<real> *input, inaccel::vector<rea
     .arg(*(output))
     .arg(num_images);
 
-    inaccel::wait(inaccel::submit(resnet50));
+    inaccel::submit(resnet50).get();
 }
 
 void predict(char *q, std::vector<std::string>::iterator image_files, std::vector<imagenet_content> &imagecontents, const real *results, int num_images) {
